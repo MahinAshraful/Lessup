@@ -1,6 +1,4 @@
-// src/services/api.js
-const API_URL = 'http://127.0.0.1:5000/api';
-
+const API_URL = 'https://lessup-backend.onrender.com/api';
 export const fetchSongs = async () => {
   try {
     console.log('Fetching songs from:', `${API_URL}/songs`);
