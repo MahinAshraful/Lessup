@@ -1,0 +1,31 @@
+{
+  "songs": [
+    {
+      "id": "2afd3a7d-7821-43e0-a97a-0beea75410c5",
+      "title": "My Song",
+      "artist": "Playboi Carti",
+      "url": "/api/audio/2afd3a7d-7821-43e0-a97a-0beea75410c5.mp3",
+      "coverUrl": "/api/covers/2afd3a7d-7821-43e0-a97a-0beea75410c5.jpg",
+      "duration": 190.056,
+      "uploadDate": 1743712851
+    },
+    {
+      "id": "bcd424d0-3472-4ef8-944a-bffc68721b89",
+      "title": "My Song",
+      "artist": "Playboi Carti",
+      "url": "/api/audio/bcd424d0-3472-4ef8-944a-bffc68721b89.mp3",
+      "coverUrl": "/api/covers/bcd424d0-3472-4ef8-944a-bffc68721b89.jpg",
+      "duration": 190.056,
+      "uploadDate": 1743713013
+    },
+    {
+      "id": "87ef1aab-a354-4aff-9364-2fc6f33197f0",
+      "title": "testsong",
+      "artist": "playboy Carti",
+      "url": "/api/audio/87ef1aab-a354-4aff-9364-2fc6f33197f0.mp3",
+      "coverUrl": "/api/covers/87ef1aab-a354-4aff-9364-2fc6f33197f0.jpg",
+      "duration": 190.056,
+      "uploadDate": 1743713484
+    }
+  ]
+}
