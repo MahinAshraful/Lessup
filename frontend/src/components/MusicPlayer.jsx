@@ -24,6 +24,9 @@ const MusicPlayer = ({ song, effects }) => {
       clearTimeout(thunderTimerRef.current);
     }
     
+    // Only schedule next thunder if song is playing
+    if (!isPlaying) return;
+    
     // Calculate random delay between 1-4 seconds (1000-4000ms)
     // More intense thunder (higher slider value) means slightly shorter delays
     const minDelay = 1000; // Minimum 1 second
@@ -34,7 +37,7 @@ const MusicPlayer = ({ song, effects }) => {
     
     // Set the timer to play thunder after the random delay
     thunderTimerRef.current = setTimeout(() => {
-      if (thunderSoundRef.current && effects.thunder > 0) {
+      if (thunderSoundRef.current && effects.thunder > 0 && isPlaying) {
         // Amplify thunder volume for better audibility
         const thunderVolume = (effects.thunder / 100) * 2.5;
         // Clamp to max 1.0
@@ -60,8 +63,8 @@ const MusicPlayer = ({ song, effects }) => {
       echoIntervalRef.current = null;
     }
     
-    // Only create echo if reverb is enabled
-    if (reverbAmount > 0 && soundRef.current && soundRef.current.playing()) {
+    // Only create echo if reverb is enabled and song is playing
+    if (reverbAmount > 0 && soundRef.current && isPlaying) {
       // Calculate echo parameters based on reverb amount
       const echoDelay = 200 + (reverbAmount * 2); // ms - longer delay for higher reverb
       const echoCount = Math.floor(2 + (reverbAmount / 20)); // more echoes for higher reverb
@@ -71,8 +74,8 @@ const MusicPlayer = ({ song, effects }) => {
       
       // Create the interval for multiple echoes
       echoIntervalRef.current = setInterval(() => {
-        // Stop after desired number of echoes
-        if (echoIndex >= echoCount) {
+        // Stop after desired number of echoes or if song paused
+        if (echoIndex >= echoCount || !isPlaying) {
           clearInterval(echoIntervalRef.current);
           echoIntervalRef.current = null;
           return;
@@ -97,9 +100,12 @@ const MusicPlayer = ({ song, effects }) => {
             volume: echoVolume,
             rate: effects.speed * (0.98 - (echoIndex * 0.01)), // Slightly slower for trailing effect
             onload: () => {
-              // Set position to match main sound
-              echoSoundRef.current.seek(currentPos);
-              echoSoundRef.current.play();
+              // Only play if song is still playing
+              if (isPlaying) {
+                // Set position to match main sound
+                echoSoundRef.current.seek(currentPos);
+                echoSoundRef.current.play();
+              }
             }
           });
           
@@ -111,13 +117,76 @@ const MusicPlayer = ({ song, effects }) => {
         }
       }, echoDelay);
       
-      // Schedule next batch of echoes
-      const nextEchoTime = (echoDelay * echoCount) + 100;
-      echoTimerRef.current = setTimeout(() => {
-        if (soundRef.current && soundRef.current.playing() && effects.reverb > 0) {
-          createEchoEffect(effects.reverb);
-        }
-      }, nextEchoTime);
+      // Only schedule next batch of echoes if song is playing
+      if (isPlaying) {
+        const nextEchoTime = (echoDelay * echoCount) + 100;
+        echoTimerRef.current = setTimeout(() => {
+          if (soundRef.current && isPlaying && effects.reverb > 0) {
+            createEchoEffect(effects.reverb);
+          }
+        }, nextEchoTime);
+      }
+    }
+  };
+
+  // Stop all sound effects
+  const stopAllEffects = () => {
+    // Stop rain sound
+    if (rainSoundRef.current && rainSoundRef.current.playing()) {
+      rainSoundRef.current.pause(); // Use pause instead of stop to retain position
+    }
+    
+    // Stop thunder sound and clear timer
+    if (thunderSoundRef.current && thunderSoundRef.current.playing()) {
+      thunderSoundRef.current.stop();
+    }
+    
+    if (thunderTimerRef.current) {
+      clearTimeout(thunderTimerRef.current);
+      thunderTimerRef.current = null;
+    }
+    
+    // Stop echo/reverb effect and clear timers
+    if (echoSoundRef.current && echoSoundRef.current.playing()) {
+      echoSoundRef.current.stop();
+    }
+    
+    if (echoTimerRef.current) {
+      clearTimeout(echoTimerRef.current);
+      echoTimerRef.current = null;
+    }
+    
+    if (echoIntervalRef.current) {
+      clearInterval(echoIntervalRef.current);
+      echoIntervalRef.current = null;
+    }
+  };
+  
+  // Resume all sound effects
+  const resumeAllEffects = () => {
+    // Resume rain if needed
+    if (rainSoundRef.current && effects.rain > 0) {
+      const rainVolume = (effects.rain / 100) * 1.5;
+      const clampedRainVolume = Math.min(rainVolume, 1.0);
+      rainSoundRef.current.volume(clampedRainVolume);
+      rainSoundRef.current.play();
+    }
+    
+    // Schedule thunder if needed
+    if (effects.thunder > 0 && !thunderTimerRef.current) {
+      // Start with an immediate thunder
+      const thunderVolume = (effects.thunder / 100) * 2.5;
+      const clampedThunderVolume = Math.min(thunderVolume, 1.0);
+      
+      if (thunderSoundRef.current) {
+        thunderSoundRef.current.volume(clampedThunderVolume);
+        thunderSoundRef.current.play();
+      }
+    }
+    
+    // Restart reverb if needed
+    if (effects.reverb > 0) {
+      createEchoEffect(effects.reverb);
     }
   };
 
@@ -146,7 +215,7 @@ const MusicPlayer = ({ song, effects }) => {
         },
         onend: () => {
           // When thunder ends, schedule next thunder if effect is active
-          if (effects.thunder > 0) {
+          if (effects.thunder > 0 && isPlaying) {
             scheduleNextThunder(effects.thunder);
           }
         }
@@ -184,6 +253,15 @@ const MusicPlayer = ({ song, effects }) => {
       }
     };
   }, []);
+  
+  // Watch isPlaying state to control effects
+  useEffect(() => {
+    if (isPlaying) {
+      resumeAllEffects();
+    } else {
+      stopAllEffects();
+    }
+  }, [isPlaying]);
   
   // Load song when it changes
   useEffect(() => {
@@ -245,32 +323,19 @@ const MusicPlayer = ({ song, effects }) => {
               clearInterval(echoIntervalRef.current);
               echoIntervalRef.current = null;
             }
+            
+            // Also stop other effects since song ended
+            stopAllEffects();
           },
           onplay: () => {
             console.log('Song playback started');
             
-            // Start reverb echo effect if reverb is enabled
-            if (effects.reverb > 0) {
-              createEchoEffect(effects.reverb);
-            }
+            // Effects will be started by the isPlaying effect
           },
           onpause: () => {
             console.log('Song playback paused');
             
-            // Stop any echo effects when main sound is paused
-            if (echoSoundRef.current) {
-              echoSoundRef.current.pause();
-            }
-            
-            if (echoTimerRef.current) {
-              clearTimeout(echoTimerRef.current);
-              echoTimerRef.current = null;
-            }
-            
-            if (echoIntervalRef.current) {
-              clearInterval(echoIntervalRef.current);
-              echoIntervalRef.current = null;
-            }
+            // Effects will be stopped by the isPlaying effect
           },
           onseek: () => {
             console.log('Song seek occurred');
@@ -291,7 +356,7 @@ const MusicPlayer = ({ song, effects }) => {
             }
             
             // Restart echo effect if playing and reverb is enabled
-            if (soundRef.current.playing() && effects.reverb > 0) {
+            if (isPlaying && effects.reverb > 0) {
               createEchoEffect(effects.reverb);
             }
           }
@@ -334,7 +399,7 @@ const MusicPlayer = ({ song, effects }) => {
       }
       
       // If song is playing and reverb is enabled, create new echoes
-      if (soundRef.current.playing() && effects.reverb > 0) {
+      if (isPlaying && effects.reverb > 0) {
         createEchoEffect(effects.reverb);
       }
       
@@ -346,7 +411,8 @@ const MusicPlayer = ({ song, effects }) => {
         const clampedRainVolume = Math.min(rainVolume, 1.0);
         rainSoundRef.current.volume(clampedRainVolume);
         
-        if (rainVolume > 0) {
+        // Only play rain if song is playing
+        if (rainVolume > 0 && isPlaying) {
           if (!rainSoundRef.current.playing()) {
             console.log('Starting rain sound with volume:', clampedRainVolume);
             rainSoundRef.current.play();
@@ -362,7 +428,7 @@ const MusicPlayer = ({ song, effects }) => {
       // Apply thunder sound with random timing
       if (thunderSoundRef.current) {
         // Handle thunder effect changes
-        if (effects.thunder > 0) {
+        if (effects.thunder > 0 && isPlaying) {
           // If we've just turned on thunder or increased it
           if (!thunderTimerRef.current) {
             // Start with an immediate thunder
@@ -376,7 +442,7 @@ const MusicPlayer = ({ song, effects }) => {
             // Next thunder will be scheduled by the onend handler
           }
         } else {
-          // Thunder effect is turned off
+          // Thunder effect is turned off or song is paused
           if (thunderTimerRef.current) {
             clearTimeout(thunderTimerRef.current);
             thunderTimerRef.current = null;
@@ -389,7 +455,7 @@ const MusicPlayer = ({ song, effects }) => {
     } catch (error) {
       console.error('Error applying effects:', error);
     }
-  }, [effects]);
+  }, [effects, isPlaying]);
   
   const updateProgress = () => {
     if (soundRef.current) {
@@ -411,12 +477,12 @@ const MusicPlayer = ({ song, effects }) => {
       if (isPlaying) {
         soundRef.current.pause();
         cancelAnimationFrame(animationRef.current);
+        setIsPlaying(false);
       } else {
         soundRef.current.play();
         animationRef.current = requestAnimationFrame(updateProgress);
+        setIsPlaying(true);
       }
-      
-      setIsPlaying(!isPlaying);
     } catch (error) {
       console.error('Error handling play/pause:', error);
     }
